@@ -28,13 +28,25 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 
 const box = 20; // 每一格大小
-let snake = [{x: 9 * box, y: 10 * box}]; // 蛇身数组
-let direction = 'RIGHT';
-let food = {
-  x: Math.floor(Math.random() * 19 + 1) * box,
-  y: Math.floor(Math.random() * 19 + 1) * box
-};
-let score = 0;
+let snake, direction, food, score;
+let gameOver = false;
+let game = null; // 计时器引用
+
+function initGame() {
+  // 初始化游戏状态
+  snake = [{x: 9 * box, y: 10 * box}];
+  direction = 'RIGHT';
+  food = {
+    x: Math.floor(Math.random() * 19 + 1) * box,
+    y: Math.floor(Math.random() * 19 + 1) * box
+  };
+  score = 0;
+  gameOver = false;
+
+  // 启动或重启定时器
+  if (game) clearInterval(game);
+  game = setInterval(draw, 250);
+}
 
 // 监听按键控制方向
 document.addEventListener('keydown', e => {
@@ -43,16 +55,26 @@ document.addEventListener('keydown', e => {
     e.preventDefault();
   }
 
-  if (e.key === 'ArrowLeft' && direction !== 'RIGHT') direction = 'LEFT';
-  if (e.key === 'ArrowUp' && direction !== 'DOWN') direction = 'UP';
-  if (e.key === 'ArrowRight' && direction !== 'LEFT') direction = 'RIGHT';
-  if (e.key === 'ArrowDown' && direction !== 'UP') direction = 'DOWN';
+  if (!gameOver) {
+    if (e.key === 'ArrowLeft' && direction !== 'RIGHT') direction = 'LEFT';
+    if (e.key === 'ArrowUp' && direction !== 'DOWN') direction = 'UP';
+    if (e.key === 'ArrowRight' && direction !== 'LEFT') direction = 'RIGHT';
+    if (e.key === 'ArrowDown' && direction !== 'UP') direction = 'DOWN';
+  }
+
+  // 游戏结束后按 R 重启
+  if (gameOver && (e.key === 'r' || e.key === 'R')) {
+    initGame();
+  }
 });
 
 function draw() {
   // 清空画布
   ctx.fillStyle = '#222';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // 绘制背景网格（与 box 对齐）
+  drawGrid();
 
   // 绘制蛇
   for (let i = 0; i < snake.length; i++) {
@@ -86,14 +108,24 @@ function draw() {
 
   const newHead = {x: headX, y: headY};
 
-  // 撞墙或撞自己则结束
+  // 撞墙或撞自己则结束（改为设置 gameOver 并停止计时器）
   if (
     headX < 0 || headY < 0 ||
     headX >= canvas.width || headY >= canvas.height ||
     collision(newHead, snake)
   ) {
-    clearInterval(game);
-    alert('游戏结束！得分：' + score);
+    gameOver = true;
+    if (game) clearInterval(game);
+    // 在画布上显示提示（不使用 alert 阻塞）
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(0, canvas.height / 2 - 40, canvas.width, 80);
+    ctx.fillStyle = '#fff';
+    ctx.font = '24px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('游戏结束！得分：' + score, canvas.width / 2, canvas.height / 2 - 2);
+    ctx.font = '16px Arial';
+    ctx.fillText('按 R 重新开始', canvas.width / 2, canvas.height / 2 + 24);
+    return; // 不再继续本帧的其余逻辑
   }
 
   snake.unshift(newHead);
@@ -104,11 +136,38 @@ function draw() {
   ctx.fillText('得分: ' + score, 10, 20);
 }
 
+// 绘制网格函数：使用半透明线条，按 box 大小对齐
+function drawGrid() {
+  const cols = canvas.width / box;
+  const rows = canvas.height / box;
+  ctx.strokeStyle = 'rgba(255,255,255,0.04)'; // 细线，低不透明度
+  ctx.lineWidth = 1;
+
+  // 垂直线
+  for (let i = 0; i <= cols; i++) {
+    const x = i * box + 0.5; // 0.5 像素偏移以获得更清晰的 1px 线
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, canvas.height);
+    ctx.stroke();
+  }
+
+  // 水平线
+  for (let j = 0; j <= rows; j++) {
+    const y = j * box + 0.5;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(canvas.width, y);
+    ctx.stroke();
+  }
+}
+
 function collision(head, array) {
   return array.some(part => part.x === head.x && part.y === head.y);
 }
 
-let game = setInterval(draw, 150);
+// 启动初始游戏
+initGame();
 </script>
 </body>
 </html>
