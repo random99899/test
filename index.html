@@ -1,173 +1,77 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>贪吃蛇</title>
-<style>
-  body {
-    background: #111;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-    color: white;
-    font-family: sans-serif;
-  }
-  canvas {
-    background: #222;
-    border: 2px solid #555;
-  }
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>R4nd0m99的博客</title>
+  <style>
+    :root{--bg:#fff;--text:#111;--muted:#666;--accent:#4f46e5}
+    *{box-sizing:border-box}
+    body{font-family:Inter,system-ui,Arial,sans-serif;margin:0;background:var(--bg);color:var(--text)}
+    .wrap{max-width:900px;margin:48px auto;padding:0 20px}
+    header{display:flex;align-items:center;justify-content:space-between;margin-bottom:28px}
+    .site-title{font-size:22px;font-weight:700}
+    nav a{color:var(--muted);text-decoration:none;margin-left:14px}
+    .hero{padding:28px;border-radius:12px;background:#f8fafc;border:1px solid #eef2ff;margin-bottom:24px}
+    .posts{display:flex;flex-direction:column;gap:16px}
+    .post{padding:18px;border-radius:10px;border:1px dashed #e6eef8;background:transparent;min-height:120px}
+    .placeholder{color:var(--muted);font-size:14px}
+    footer{margin-top:48px;color:var(--muted);font-size:13px;text-align:center}
+    /* 页面淡出过渡 */
+    .fade-out { opacity: 1; transition: opacity 600ms ease; }
+    .fade-out.hidden { opacity: 0; }
+  </style>
 </head>
 <body>
-<canvas id="game" width="400" height="400"></canvas>
+  <script>
+    // 当点击关于链接时先播放淡出动画再跳转
+    document.addEventListener('DOMContentLoaded', () => {
+      const about = document.querySelector('nav a[href="snake.html"]');
+      if (!about) return;
+      about.addEventListener('click', e => {
+        e.preventDefault();
+        document.documentElement.classList.add('fade-out');
+        // 触发重绘以确保 transition 生效
+        void document.documentElement.offsetWidth;
+        document.documentElement.classList.add('hidden');
+        setTimeout(() => {
+          window.location.href = about.href;
+        }, 600);
+      });
+    });
+  </script>
+  <div class="wrap">
+    <header>
+      <div>
+        <div class="site-title">R4nd0m99的博客</div>
+        <div style="font-size:13px;color:var(--muted)">这是一个副标题</div>
+      </div>
+      <nav>
+        <a href="games/snake.html">贪吃蛇</a>
+        <a href="games/2048.html">2048</a>
+      </nav>
+    </header>
 
-<script>
-const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
+    <div class="hero">
+      <h2>About me：</h2>
+      <p class="placeholder">
+        <a href="https://leetcode.cn/u/random99" target="_blank" rel="noopener">https://leetcode.cn/u/random99</a>
+      </p></p>
+    </div>
 
-const box = 20; // 每一格大小
-let snake, direction, food, score;
-let gameOver = false;
-let game = null; // 计时器引用
+    <main>
+      <section class="posts" id="posts">
+        <!-- 在这里添加文章列表：每个 .post 是一个文章预览或全文 -->
+        <article class="post" contenteditable="true">
+          <p class="placeholder"></p>
+          <img src="photos/486.jpeg" alt="图片描述" style="max-width:100%;border-radius:6px;margin-top:12px;" />
+        </article>
+      </section>
+    </main>
 
-function initGame() {
-  // 初始化游戏状态
-  snake = [{x: 9 * box, y: 10 * box}];
-  direction = 'RIGHT';
-  food = {
-    x: Math.floor(Math.random() * 19 + 1) * box,
-    y: Math.floor(Math.random() * 19 + 1) * box
-  };
-  score = 0;
-  gameOver = false;
-
-  // 启动或重启定时器
-  if (game) clearInterval(game);
-  game = setInterval(draw, 250);
-}
-
-// 监听按键控制方向
-document.addEventListener('keydown', e => {
-  // 阻止上下键触发页面滚动
-  if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
-    e.preventDefault();
-  }
-
-  if (!gameOver) {
-    if (e.key === 'ArrowLeft' && direction !== 'RIGHT') direction = 'LEFT';
-    if (e.key === 'ArrowUp' && direction !== 'DOWN') direction = 'UP';
-    if (e.key === 'ArrowRight' && direction !== 'LEFT') direction = 'RIGHT';
-    if (e.key === 'ArrowDown' && direction !== 'UP') direction = 'DOWN';
-  }
-
-  // 游戏结束后按 R 重启
-  if (gameOver && (e.key === 'r' || e.key === 'R')) {
-    initGame();
-  }
-});
-
-function draw() {
-  // 清空画布
-  ctx.fillStyle = '#222';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  // 绘制背景网格（与 box 对齐）
-  drawGrid();
-
-  // 绘制蛇
-  for (let i = 0; i < snake.length; i++) {
-    ctx.fillStyle = i === 0 ? '#0f0' : '#7fff7f';
-    ctx.fillRect(snake[i].x, snake[i].y, box - 1, box - 1);
-  }
-
-  // 绘制食物
-  ctx.fillStyle = '#f00';
-  ctx.fillRect(food.x, food.y, box - 1, box - 1);
-
-  // 蛇头坐标
-  let headX = snake[0].x;
-  let headY = snake[0].y;
-
-  if (direction === 'LEFT') headX -= box;
-  if (direction === 'UP') headY -= box;
-  if (direction === 'RIGHT') headX += box;
-  if (direction === 'DOWN') headY += box;
-
-  // 吃到食物
-  if (headX === food.x && headY === food.y) {
-    score++;
-    food = {
-      x: Math.floor(Math.random() * 19 + 1) * box,
-      y: Math.floor(Math.random() * 19 + 1) * box
-    };
-  } else {
-    snake.pop(); // 没吃到就去掉尾巴
-  }
-
-  const newHead = {x: headX, y: headY};
-
-  // 撞墙或撞自己则结束（改为设置 gameOver 并停止计时器）
-  if (
-    headX < 0 || headY < 0 ||
-    headX >= canvas.width || headY >= canvas.height ||
-    collision(newHead, snake)
-  ) {
-    gameOver = true;
-    if (game) clearInterval(game);
-    // 在画布上显示提示（不使用 alert 阻塞）
-    ctx.fillStyle = 'rgba(0,0,0,0.6)';
-    ctx.fillRect(0, canvas.height / 2 - 40, canvas.width, 80);
-    ctx.fillStyle = '#fff';
-    ctx.font = '24px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText('游戏结束！得分：' + score, canvas.width / 2, canvas.height / 2 - 2);
-    ctx.font = '16px Arial';
-    ctx.fillText('按 R 重新开始', canvas.width / 2, canvas.height / 2 + 24);
-    return; // 不再继续本帧的其余逻辑
-  }
-
-  snake.unshift(newHead);
-
-  // 显示分数
-  ctx.fillStyle = '#fff';
-  ctx.font = '20px Arial';
-  ctx.fillText('得分: ' + score, 10, 20);
-}
-
-// 绘制网格函数：使用半透明线条，按 box 大小对齐
-function drawGrid() {
-  const cols = canvas.width / box;
-  const rows = canvas.height / box;
-  ctx.strokeStyle = 'rgba(255,255,255,0.04)'; // 细线，低不透明度
-  ctx.lineWidth = 1;
-
-  // 垂直线
-  for (let i = 0; i <= cols; i++) {
-    const x = i * box + 0.5; // 0.5 像素偏移以获得更清晰的 1px 线
-    ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, canvas.height);
-    ctx.stroke();
-  }
-
-  // 水平线
-  for (let j = 0; j <= rows; j++) {
-    const y = j * box + 0.5;
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(canvas.width, y);
-    ctx.stroke();
-  }
-}
-
-function collision(head, array) {
-  return array.some(part => part.x === head.x && part.y === head.y);
-}
-
-// 启动初始游戏
-initGame();
-</script>
+    <footer>
+      Powered by R4nd0m99 &copy; 2024
+    </footer>
+  </div>
 </body>
 </html>
