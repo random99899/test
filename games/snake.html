@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>贪吃蛇</title>
+<style>
+  body {
+    background: #111;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    color: white;
+    font-family: sans-serif;
+  }
+  canvas {
+    background: #222;
+    border: 2px solid #555;
+  }
+  /* 布局：画布 + 控制面板 */
+  .game-area { display:flex; gap:20px; align-items:flex-start; }
+  .controls { width:220px; padding:14px; border-radius:12px; background: rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.04); color: #dbeafe; font-size:14px }
+  .controls h4{margin:0 0 8px 0;font-size:15px}
+  .controls p{margin:6px 0;color:#9aa6b2;font-size:13px}
+</style>
+</head>
+<body>
+<div class="game-area">
+  <div class="game-wrap" style="position:relative;display:inline-block">
+    <div id="scoreboard" style="position:absolute;left:8px;top:-36px;padding:6px 10px;background:rgba(0,0,0,0.5);border-radius:8px;color:#fff;font-weight:600;font-size:14px">得分: 0</div>
+    <div id="pauseOverlay" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);padding:12px 18px;background:rgba(0,0,0,0.6);border-radius:10px;color:#fff;font-weight:700;font-size:18px;opacity:0;pointer-events:none;transition:opacity .18s">暂停</div>
+    <canvas id="game" width="400" height="400"></canvas>
+  </div>
+
+  <aside class="controls" aria-label="控制规则">
+    <h4>控制规则</h4>
+    <p><strong>移动：</strong>W = 上, A = 左, S = 下, D = 右</p>
+    <p><strong>备用键：</strong>方向键也可工作</p>
+    <p><strong>暂停：</strong>空格键（Space）</p>
+    <p><strong>重启：</strong>R 键（游戏结束后）</p>
+    <hr style="border:none;border-top:1px solid rgba(255,255,255,0.04);margin:10px 0">
+    <p style="color:#9aa6b2;font-size:12px;margin-top:6px">提示：点击画面，然后使用键盘操作。如需更改控制，请编辑脚本。</p>
+  </aside>
+</div>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+
+const box = 20; // 每一格大小
+let snake, direction, food, score;
+let gameOver = false;
+let game = null; // 计时器引用
+let paused = false;
+
+function initGame() {
+  // 初始化游戏状态
+  snake = [{x: 9 * box, y: 10 * box}];
+  direction = 'RIGHT';
+  food = {
+    x: Math.floor(Math.random() * 19 + 1) * box,
+    y: Math.floor(Math.random() * 19 + 1) * box
+  };
+  score = 0;
+  gameOver = false;
+  paused = false;
+
+  // 启动或重启定时器
+  if (game) clearInterval(game);
+  game = setInterval(draw, 250);
+
+  // 初始化记分板
+  const sb = document.getElementById('scoreboard');
+  if (sb) sb.textContent = '得分: ' + score;
+  // 隐藏暂停覆盖
+  const overlay = document.getElementById('pauseOverlay');
+  if (overlay) { overlay.style.opacity = '0'; overlay.style.pointerEvents = 'none'; }
+}
+
+// 监听按键控制方向
+document.addEventListener('keydown', e => {
+  // 阻止上下键触发页面滚动
+  if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
+    e.preventDefault();
+  }
+
+  if (!gameOver) {
+    const k = (e.key || '').toLowerCase();
+    // WASD or arrow keys
+    if ((k === 'a' || e.key === 'ArrowLeft') && direction !== 'RIGHT') direction = 'LEFT';
+    if ((k === 'w' || e.key === 'ArrowUp') && direction !== 'DOWN') direction = 'UP';
+    if ((k === 'd' || e.key === 'ArrowRight') && direction !== 'LEFT') direction = 'RIGHT';
+    if ((k === 's' || e.key === 'ArrowDown') && direction !== 'UP') direction = 'DOWN';
+  }
+
+  // 空格键切换暂停/继续（阻止页面滚动）
+  if (e.code === 'Space') {
+    e.preventDefault();
+    togglePause();
+    return;
+  }
+
+  // 游戏结束后按 R 重启
+  if (gameOver && (e.key === 'r' || e.key === 'R')) {
+    initGame();
+  }
+});
+
+function draw() {
+  // 清空画布
+  ctx.fillStyle = '#222';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // 绘制背景网格（与 box 对齐）
+  drawGrid();
+
+  // 绘制蛇
+  for (let i = 0; i < snake.length; i++) {
+    ctx.fillStyle = i === 0 ? '#0f0' : '#7fff7f';
+    ctx.fillRect(snake[i].x, snake[i].y, box - 1, box - 1);
+  }
+
+  // 绘制食物
+  ctx.fillStyle = '#f00';
+  ctx.fillRect(food.x, food.y, box - 1, box - 1);
+
+  // 蛇头坐标
+  let headX = snake[0].x;
+  let headY = snake[0].y;
+
+  if (direction === 'LEFT') headX -= box;
+  if (direction === 'UP') headY -= box;
+  if (direction === 'RIGHT') headX += box;
+  if (direction === 'DOWN') headY += box;
+
+  // 吃到食物
+  if (headX === food.x && headY === food.y) {
+    score++;
+    food = {
+      x: Math.floor(Math.random() * 19 + 1) * box,
+      y: Math.floor(Math.random() * 19 + 1) * box
+    };
+  } else {
+    snake.pop(); // 没吃到就去掉尾巴
+  }
+
+  const newHead = {x: headX, y: headY};
+
+  // 撞墙或撞自己则结束（改为设置 gameOver 并停止计时器）
+  if (
+    headX < 0 || headY < 0 ||
+    headX >= canvas.width || headY >= canvas.height ||
+    collision(newHead, snake)
+  ) {
+    gameOver = true;
+    if (game) clearInterval(game);
+    paused = false;
+    // 在画布上显示提示（不使用 alert 阻塞）
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(0, canvas.height / 2 - 40, canvas.width, 80);
+    ctx.fillStyle = '#fff';
+    ctx.font = '24px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('游戏结束！得分：' + score, canvas.width / 2, canvas.height / 2 - 2);
+    ctx.font = '16px Arial';
+    ctx.fillText('按 R 重新开始', canvas.width / 2, canvas.height / 2 + 24);
+    return; // 不再继续本帧的其余逻辑
+  }
+
+  snake.unshift(newHead);
+
+  // 更新记分板显示（在画布上方）
+  const sb = document.getElementById('scoreboard');
+  if (sb) sb.textContent = '得分: ' + score;
+}
+
+function togglePause() {
+  if (gameOver) return; // 游戏结束后不允许暂停
+  const overlay = document.getElementById('pauseOverlay');
+  paused = !paused;
+  if (paused) {
+    if (game) { clearInterval(game); game = null; }
+    if (overlay) { overlay.style.opacity = '1'; overlay.style.pointerEvents = 'auto'; }
+  } else {
+    // 恢复游戏循环
+    if (!game) game = setInterval(draw, 250);
+    if (overlay) { overlay.style.opacity = '0'; overlay.style.pointerEvents = 'none'; }
+  }
+}
+
+// 绘制网格函数：使用半透明线条，按 box 大小对齐
+function drawGrid() {
+  const cols = canvas.width / box;
+  const rows = canvas.height / box;
+  ctx.strokeStyle = 'rgba(255,255,255,0.04)'; // 细线，低不透明度
+  ctx.lineWidth = 1;
+
+  // 垂直线
+  for (let i = 0; i <= cols; i++) {
+    const x = i * box + 0.5; // 0.5 像素偏移以获得更清晰的 1px 线
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, canvas.height);
+    ctx.stroke();
+  }
+
+  // 水平线
+  for (let j = 0; j <= rows; j++) {
+    const y = j * box + 0.5;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(canvas.width, y);
+    ctx.stroke();
+  }
+}
+
+function collision(head, array) {
+  return array.some(part => part.x === head.x && part.y === head.y);
+}
+
+// 启动初始游戏
+initGame();
+</script>
+</body>
+</html>

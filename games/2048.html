@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no" />
+<title>2048 - 经典丝滑版</title>
+<style>
+:root{
+  --bg:#faf8ef; --board:#bbada0; --cell:#cdc1b4; --text:#776e65; --light:#f9f6f2;
+  --tile-size:106.25px; --tile-gap:15px; --board-padding:15px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:'Clear Sans','Helvetica Neue',Arial,sans-serif;
+  background:var(--bg);
+  display:flex;align-items:center;justify-content:center;
+  min-height:100vh;padding:20px;
+}
+.container{width:500px;max-width:100%}
+.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+.title{font-size:80px;font-weight:700;color:var(--text);line-height:1}
+.scores{display:flex;gap:10px}
+.score-box{background:#bbada0;color:var(--light);padding:10px 20px;border-radius:6px;text-align:center;min-width:80px}
+.score-label{font-size:13px;opacity:0.8}
+.score-value{font-size:24px;font-weight:700}
+button.new{background:#8f7a66;color:var(--light);border:none;padding:10px 20px;border-radius:6px;font-size:16px;font-weight:700;cursor:pointer;transition:background .2s}
+button.new:hover{background:#9f8a76}
+
+.board-container{position:relative;width:500px;height:500px;background:var(--board);border-radius:8px;padding:var(--board-padding);box-sizing:border-box}
+.grid{display:grid;grid-template:repeat(4,1fr)/repeat(4,1fr);gap:var(--tile-gap);width:100%;height:100%;position:relative;z-index:1}
+.grid-cell{background:var(--cell);border-radius:6px}
+.tiles{position:absolute;inset:var(--board-padding);z-index:2;pointer-events:none}
+.tile{
+  position:absolute;
+  display:flex;align-items:center;justify-content:center;
+  width:var(--tile-size);height:var(--tile-size);
+  border-radius:6px;
+  font-weight:700;color:var(--light);
+  transition:transform 150ms ease-in-out, left 150ms ease-in-out, top 150ms ease-in-out;
+  font-size:55px;
+}
+.tile.new{animation:appear 200ms ease-in-out}
+.tile.merged{animation:pop 200ms ease-in-out}
+@keyframes appear{0%{transform:scale(0)}100%{transform:scale(1)}}
+@keyframes pop{0%{transform:scale(1)}50%{transform:scale(1.15)}100%{transform:scale(1)}}
+
+/* tile colors */
+.tile-2{background:#eee4da;color:#776e65}
+.tile-4{background:#ede0c8;color:#776e65}
+.tile-8{background:#f2b179;font-size:50px}
+.tile-16{background:#f59563;font-size:50px}
+.tile-32{background:#f67c5f;font-size:45px}
+.tile-64{background:#f65e3b;font-size:45px}
+.tile-128{background:#edcf72;font-size:40px}
+.tile-256{background:#edcc61;font-size:40px}
+.tile-512{background:#edc850;font-size:35px}
+.tile-1024{background:#edc53f;font-size:30px}
+.tile-2048{background:#edc22e;font-size:30px}
+.tile-super{background:#3c3a32;font-size:25px}
+
+.controls{margin-top:15px;color:var(--text);font-size:14px;text-align:center;opacity:0.8}
+.game-over{position:absolute;inset:0;background:rgba(238,228,218,0.73);z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:8px;opacity:0;pointer-events:none;transition:opacity 300ms}
+.game-over.show{opacity:1;pointer-events:auto}
+.game-over-text{font-size:60px;font-weight:700;color:var(--text);margin-bottom:20px}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="title">2048</div>
+    <div style="display:flex;gap:10px;align-items:flex-end;flex-direction:column">
+      <div class="scores">
+        <div class="score-box">
+          <div class="score-label">分数</div>
+          <div class="score-value" id="score">0</div>
+        </div>
+        <div class="score-box">
+          <div class="score-label">最高</div>
+          <div class="score-value" id="best">0</div>
+        </div>
+      </div>
+      <button class="new" id="newGame">新游戏</button>
+    </div>
+  </div>
+
+  <div class="board-container">
+    <div class="grid" id="grid">
+      <div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div>
+      <div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div>
+      <div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div>
+      <div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div>
+    </div>
+    <div class="tiles" id="tiles"></div>
+    <div class="game-over" id="gameOver">
+      <div class="game-over-text">游戏结束</div>
+      <button class="new" onclick="newGame()">重新开始</button>
+    </div>
+  </div>
+
+  <div class="controls">
+    使用 W/A/S/D 或方向键控制 | 触摸滑动控制 | 合并相同数字达到 2048！
+  </div>
+</div>
+
+<script>
+const SIZE = 4;
+const TILE_SIZE = 106.25;
+const GAP = 15;
+let grid = [];
+let score = 0;
+let best = parseInt(localStorage.getItem('2048-best')||'0');
+let tiles = [];
+let nextId = 0;
+let animating = false;
+
+// DOM
+const scoreEl = document.getElementById('score');
+const bestEl = document.getElementById('best');
+const tilesEl = document.getElementById('tiles');
+const gameOverEl = document.getElementById('gameOver');
+
+function init(){
+  grid = Array(SIZE).fill(null).map(()=>Array(SIZE).fill(null));
+  tiles = [];
+  nextId = 0;
+  score = 0;
+  animating = false;
+  updateScore();
+  gameOverEl.classList.remove('show');
+  tilesEl.innerHTML = '';
+  addRandomTile();
+  addRandomTile();
+  render();
+}
+
+function addRandomTile(){
+  const empty = [];
+  for(let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++) if(!grid[r][c]) empty.push([r,c]);
+  if(empty.length===0) return null;
+  const [r,c] = empty[Math.floor(Math.random()*empty.length)];
+  const value = Math.random()<0.9? 2:4;
+  const tile = {id:nextId++, value, row:r, col:c, isNew:true, merged:false};
+  grid[r][c] = tile;
+  tiles.push(tile);
+  return tile;
+}
+
+function getTilePos(row,col){
+  return {left: col*(TILE_SIZE+GAP), top: row*(TILE_SIZE+GAP)};
+}
+
+function render(){
+  tilesEl.innerHTML = '';
+  tiles.forEach(t=>{
+    const el = document.createElement('div');
+    el.className = `tile tile-${t.value>2048?'super':t.value}`;
+    if(t.isNew) el.classList.add('new');
+    if(t.merged) el.classList.add('merged');
+    el.textContent = t.value;
+    const pos = getTilePos(t.row, t.col);
+    el.style.left = pos.left+'px';
+    el.style.top = pos.top+'px';
+    tilesEl.appendChild(el);
+  });
+  // clear flags after render
+  setTimeout(()=>{
+    tiles.forEach(t=>{t.isNew=false; t.merged=false;});
+  },300);
+}
+
+function updateScore(){
+  scoreEl.textContent = score;
+  if(score > best){ best = score; localStorage.setItem('2048-best',best); }
+  bestEl.textContent = best;
+}
+
+function canMove(){
+  for(let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++){
+    if(!grid[r][c]) return true;
+    const val = grid[r][c].value;
+    if(c+1<SIZE && grid[r][c+1] && grid[r][c+1].value===val) return true;
+    if(r+1<SIZE && grid[r+1][c] && grid[r+1][c].value===val) return true;
+  }
+  return false;
+}
+
+function move(dir){
+  if(animating) return;
+  animating = true;
+  
+  let moved = false;
+  const newGrid = Array(SIZE).fill(null).map(()=>Array(SIZE).fill(null));
+  const merged = new Set();
+  
+  const traversals = getTraversals(dir);
+  
+  traversals.row.forEach(r=>{
+    traversals.col.forEach(c=>{
+      const tile = grid[r][c];
+      if(!tile) return;
+      
+      let [nr,nc] = [r,c];
+      let next;
+      
+      // find farthest position
+      while(true){
+        next = getNext(nr,nc,dir);
+        if(!next) break;
+        const [nnr,nnc] = next;
+        if(newGrid[nnr][nnc]) break;
+        [nr,nc] = [nnr,nnc];
+      }
+      
+      // check merge
+      next = getNext(nr,nc,dir);
+      if(next){
+        const [nnr,nnc] = next;
+        const target = newGrid[nnr][nnc];
+        if(target && target.value===tile.value && !merged.has(target.id)){
+          // merge
+          tile.row = nnr; tile.col = nnc;
+          target.value *= 2;
+          target.merged = true;
+          score += target.value;
+          merged.add(target.id);
+          tiles = tiles.filter(t=>t.id!==tile.id);
+          moved = true;
+          return;
+        }
+      }
+      
+      // move
+      if(nr!==r || nc!==c){
+        tile.row = nr; tile.col = nc;
+        moved = true;
+      }
+      newGrid[nr][nc] = tile;
+    });
+  });
+  
+  grid = newGrid;
+  
+  if(moved){
+    updateScore();
+    render();
+    setTimeout(()=>{
+      addRandomTile();
+      render();
+      animating = false;
+      if(!canMove()){
+        setTimeout(()=>gameOverEl.classList.add('show'),300);
+      }
+    },200);
+  } else {
+    animating = false;
+  }
+}
+
+function getTraversals(dir){
+  const rows = Array(SIZE).fill(0).map((_,i)=>i);
+  const cols = Array(SIZE).fill(0).map((_,i)=>i);
+  if(dir==='down') rows.reverse();
+  if(dir==='right') cols.reverse();
+  return {row:rows, col:cols};
+}
+
+function getNext(r,c,dir){
+  const map = {up:[-1,0], down:[1,0], left:[0,-1], right:[0,1]};
+  const [dr,dc] = map[dir];
+  const nr = r+dr, nc = c+dc;
+  if(nr<0||nr>=SIZE||nc<0||nc>=SIZE) return null;
+  return [nr,nc];
+}
+
+// keyboard
+document.addEventListener('keydown',e=>{
+  const k = e.key.toLowerCase();
+  const code = e.code;
+  let dir = null;
+  if(code==='KeyW'||code==='ArrowUp') dir='up';
+  if(code==='KeyA'||code==='ArrowLeft') dir='left';
+  if(code==='KeyS'||code==='ArrowDown') dir='down';
+  if(code==='KeyD'||code==='ArrowRight') dir='right';
+  if(dir){ e.preventDefault(); move(dir); }
+});
+
+// touch support for mobile
+let touchStartX = 0;
+let touchStartY = 0;
+let touchEndX = 0;
+let touchEndY = 0;
+const SWIPE_THRESHOLD = 30;
+
+const boardContainer = document.querySelector('.board-container');
+
+boardContainer.addEventListener('touchstart', e=>{
+  touchStartX = e.changedTouches[0].screenX;
+  touchStartY = e.changedTouches[0].screenY;
+}, {passive: true});
+
+boardContainer.addEventListener('touchend', e=>{
+  touchEndX = e.changedTouches[0].screenX;
+  touchEndY = e.changedTouches[0].screenY;
+  handleSwipe();
+}, {passive: true});
+
+function handleSwipe(){
+  const dx = touchEndX - touchStartX;
+  const dy = touchEndY - touchStartY;
+  const absDx = Math.abs(dx);
+  const absDy = Math.abs(dy);
+  
+  if(Math.max(absDx, absDy) < SWIPE_THRESHOLD) return;
+  
+  let dir = null;
+  if(absDx > absDy){
+    dir = dx > 0 ? 'right' : 'left';
+  } else {
+    dir = dy > 0 ? 'down' : 'up';
+  }
+  
+  if(dir) move(dir);
+}
+
+document.getElementById('newGame').addEventListener('click',()=>init());
+function newGame(){ init(); }
+
+// init
+bestEl.textContent = best;
+init();
+</script>
+</body>
+</html>
